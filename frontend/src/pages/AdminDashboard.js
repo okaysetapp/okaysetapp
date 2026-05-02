@@ -458,16 +458,16 @@ export default function AdminDashboard() {
                   <h3 className="text-lg font-bold text-primary">Auto-fill from Google Maps</h3>
                 </div>
                 <p className="text-sm text-primary/80 mb-3">
-                  Paste any Google Maps link (full URL or shortened <code className="font-mono text-xs">maps.app.goo.gl</code> share link). We'll fetch name, address, phone, location, website & category.
+                  Paste a Google Maps link or type a place name. We'll fetch name, address, phone, location, website & category.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <div className="relative flex-1">
                     <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-primary/60" strokeWidth={2} />
                     <input
-                      type="url"
+                      type="text"
                       value={importUrl}
                       onChange={(e) => setImportUrl(e.target.value)}
-                      placeholder="https://maps.app.goo.gl/..."
+                      placeholder="Paste a Google Maps link or type a place name"
                       className="w-full h-12 border-2 border-border rounded-md pl-11 pr-4 text-base focus:border-primary focus:ring-2 focus:ring-secondary/50 outline-none bg-white text-primary"
                       data-testid="google-import-url"
                       disabled={importing}

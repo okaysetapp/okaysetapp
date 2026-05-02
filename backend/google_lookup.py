@@ -1,14 +1,21 @@
 """
-Google Places URL → vendor data extractor.
+Google Places lookup → vendor data extractor.
+
+Accepts three input types:
+  1. maps.app.goo.gl short links → resolve redirect, extract place
+  2. google.com/maps/place URLs  → extract place_id / coords / name
+  3. Plain text queries           → Places Text Search API
+
+Explicitly rejected:
+  - share.google links (not resolvable via Places API)
+  - google.com/maps/search result URLs (ambiguous, multi-result)
 
 Flow:
-1. Resolve shortened maps.app.goo.gl URLs by following redirects.
-2. Extract place_id, CID, or coordinates from the URL.
-3. Query Google Places API (New) v1 for full place details.
-4. Map Google's `types[]` to our 10 service categories using a static map
-   (LLM fallback if no static match).
-5. Persistent daily quota cap stored in /app/backend/.api_usage.json so it
-   survives restarts.
+1. Classify input as URL or plain text.
+2. For URLs: resolve short links, extract place_id/CID/coords.
+3. For plain text (or if URL extraction fails): text search.
+4. Map Google's `types[]` to our 10 service categories (LLM fallback).
+5. Persistent daily quota cap in /app/backend/.api_usage.json.
 """
 import os
 import re
@@ -292,51 +299,99 @@ async def _llm_category_fallback(name: str, types: list, description: str) -> Op
         return None
 
 
+# ============= Input classification =============
+_MAPS_URL_PATTERNS = [
+    'maps.app.goo.gl',
+    'google.com/maps/place',
+    'google.co.in/maps/place',
+    'goo.gl/maps',
+]
+
+_REJECTED_URL_PATTERNS = [
+    'share.google',
+    'google.com/maps/search',
+    'google.co.in/maps/search',
+]
+
+
+def _classify_input(raw: str) -> str:
+    """Return 'maps_url', 'rejected_url', or 'text_query'."""
+    lowered = raw.lower()
+    for pattern in _REJECTED_URL_PATTERNS:
+        if pattern in lowered:
+            return 'rejected_url'
+    for pattern in _MAPS_URL_PATTERNS:
+        if pattern in lowered:
+            return 'maps_url'
+    # Anything that looks like a URL but isn't a known maps pattern → text query
+    # (we don't try to handle random URLs)
+    return 'text_query'
+
+
 # ============= Main entry =============
 async def lookup_from_url(url: str) -> dict:
-    """Returns vendor-form-shaped dict + meta. Raises ValueError on bad URL or quota exceeded."""
-    if not url or not url.strip():
-        raise ValueError("URL is required")
+    """Accepts a Google Maps URL or plain text place name.
+    Returns vendor-form-shaped dict + meta. Raises ValueError or QuotaExceededError."""
+    raw = (url or '').strip()
+    if not raw:
+        raise ValueError("Input is required — paste a Google Maps link or type a place name")
 
-    # Fail fast with a clear message if the key isn't configured. This used
-    # to crash at module import; now we boot fine and only error on actual use.
     if not GOOGLE_PLACES_API_KEY:
         raise ValueError(
             "GOOGLE_PLACES_API_KEY is not set. Add it to backend env vars to use Google Places lookup."
         )
 
-    # Quota check first
+    input_type = _classify_input(raw)
+
+    if input_type == 'rejected_url':
+        raise ValueError(
+            "share.google and Google Maps search URLs are not supported. "
+            "Use a direct maps.app.goo.gl link, a google.com/maps/place link, or type the place name."
+        )
+
+    # Quota check
     ok, current = _check_and_increment_quota()
     if not ok:
         raise QuotaExceededError(f"Daily Google API cap reached ({DAILY_CAP}/day). Try again tomorrow or fill manually.")
 
-    # 1. resolve short URLs
-    full_url = await resolve_short_url(url.strip())
-    logger.info(f"Resolved URL: {full_url[:120]}")
-
-    # 2. extract identifiers
-    place_id = extract_place_id(full_url)
-    coords = extract_coordinates(full_url)
-    name_hint = extract_business_name(full_url)
-
     place: Optional[dict] = None
+    coords: Optional[Tuple[float, float]] = None
+    name_hint: Optional[str] = None
 
-    # 3a. Direct lookup if place_id is a clean ChIJ-style id
-    if place_id and place_id.startswith("ChIJ"):
-        place = await _places_get_details(place_id)
+    if input_type == 'maps_url':
+        # URL flow: resolve → extract → lookup
+        full_url = await resolve_short_url(raw)
+        logger.info(f"Resolved URL: {full_url[:120]}")
 
-    # 3b. Else use text search with name + coords (CIDs and short URLs land here)
-    if not place:
-        if name_hint:
+        place_id = extract_place_id(full_url)
+        coords = extract_coordinates(full_url)
+        name_hint = extract_business_name(full_url)
+
+        # Direct lookup if clean ChIJ-style place_id
+        if place_id and place_id.startswith("ChIJ"):
+            place = await _places_get_details(place_id)
+
+        # Fallback: text search with name + coords
+        if not place and name_hint:
             place = await _places_text_search(name_hint,
                                               coords[0] if coords else None,
                                               coords[1] if coords else None)
-        elif coords:
-            # Last resort: query by coords (less accurate)
+        if not place and coords:
             place = await _places_text_search(f"{coords[0]},{coords[1]}", coords[0], coords[1])
 
+        # Final fallback: if URL extraction failed entirely, try the raw input as a text query
+        if not place:
+            logger.info("URL extraction failed, falling back to text search with raw input")
+            place = await _places_text_search(raw)
+    else:
+        # Plain text query flow
+        logger.info(f"Text query: {raw[:80]}")
+        place = await _places_text_search(raw)
+
     if not place:
-        raise ValueError("Could not find this place on Google. Try the full Google Maps share link.")
+        raise ValueError(
+            "Could not find this place. Try a Google Maps link or a more specific name (e.g. 'Taj Falaknuma Palace Hyderabad')."
+        )
 
     # 4. parse fields
     display_name = (place.get("displayName") or {}).get("text") or name_hint or ""
