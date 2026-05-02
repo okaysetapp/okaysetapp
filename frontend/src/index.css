@@ -1,0 +1,100 @@
+@import url('https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;700;900&display=swap');
+@import 'mapbox-gl/dist/mapbox-gl.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Public Sans', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #F8F9FA;
+  color: #001F3F;
+  line-height: 1.5;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+}
+
+/* Accessibility */
+*:focus-visible {
+  outline: 4px solid #FFDC00;
+  outline-offset: 2px;
+}
+
+button, a, input, select, textarea {
+  min-height: 48px;
+}
+
+/* Remove default button styles */
+button {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* Ensure readable text */
+p, li, span, label {
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+@media (min-width: 768px) {
+  p, li, span, label {
+    font-size: 1.125rem;
+  }
+}
+
+/* Mapbox overrides */
+.mapboxgl-canvas {
+  outline: none;
+}
+
+.mapboxgl-ctrl-attrib {
+  font-size: 10px;
+}
+
+/* Custom marker cursor */
+.vendor-marker:hover {
+  z-index: 999 !important;
+}
+
+/* Loading spinner */
+.spinner {
+  border: 4px solid #AAAAAA;
+  border-top: 4px solid #001F3F;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Bottom sheet animations */
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+/* Floating card shadows */
+.floating-card {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
