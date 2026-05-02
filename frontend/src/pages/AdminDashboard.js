@@ -200,10 +200,22 @@ export default function AdminDashboard() {
       await loadData();
       setTimeout(() => closeForm(), 1500);
     } catch (error) {
-      setMessage({
-        type: 'error',
-        text: error.response?.data?.detail || 'Failed to save vendor',
-      });
+      // FastAPI returns `detail` as a string (HTTPException) or an array
+      // of objects (Pydantic 422 validation). Handle both so the user sees
+      // a readable message instead of "[object Object]".
+      const detail = error.response?.data?.detail;
+      let errorText = 'Failed to save vendor';
+      if (typeof detail === 'string') {
+        errorText = detail;
+      } else if (Array.isArray(detail)) {
+        errorText = detail
+          .map((e) => {
+            const field = e.loc?.slice(-1)[0] || 'field';
+            return `${field}: ${e.msg}`;
+          })
+          .join('; ');
+      }
+      setMessage({ type: 'error', text: errorText });
     }
   }, [editingVendor, formData, user, loadData, closeForm]);
 

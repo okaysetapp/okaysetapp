@@ -406,18 +406,28 @@ async def admin_get_all_vendors(current_user: dict = Depends(get_current_user)):
 async def admin_create_vendor(profile: VendorProfileCreate, current_user: dict = Depends(get_current_user)):
     if current_user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
-    
-    vendor_data = {
-        "user_id": None,  # Admin-created vendors don't have a user_id
-        **profile.model_dump()
-    }
-    
-    result = supabase.table('vendors').insert(vendor_data).execute()
-    
-    if not result.data:
-        raise HTTPException(status_code=500, detail="Failed to create vendor")
-    
-    return VendorProfile(**result.data[0])
+
+    # Explicit lat/lng validation — catch default/placeholder coords that slipped through
+    if profile.latitude is None or profile.longitude is None:
+        raise HTTPException(status_code=400, detail="Latitude and longitude are required")
+
+    try:
+        vendor_data = {
+            "user_id": None,  # Admin-created vendors don't have a user_id
+            **profile.model_dump()
+        }
+
+        result = supabase.table('vendors').insert(vendor_data).execute()
+
+        if not result.data:
+            raise HTTPException(status_code=500, detail="Failed to create vendor")
+
+        return VendorProfile(**result.data[0])
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Admin create vendor error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to create vendor: {str(e)}")
 
 @api_router.put("/admin/vendors/{vendor_id}", response_model=VendorProfile)
 async def admin_update_vendor(vendor_id: str, update: AdminVendorUpdate, current_user: dict = Depends(get_current_user)):
