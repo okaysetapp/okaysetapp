@@ -17,12 +17,21 @@ from slowapi.middleware import SlowAPIMiddleware
 from google_lookup import lookup_from_url, get_quota_status, QuotaExceededError
 
 ROOT_DIR = Path(__file__).parent
+# Load env from backend/.env if present (legacy), then fall back to the
+# project-root .env (canonical, also used by frontend). Whichever loads
+# first wins; the second call only fills gaps via override=False default.
 load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR.parent / '.env')
 
-# Supabase connection
-SUPABASE_URL = os.environ['SUPABASE_URL']
-SUPABASE_SERVICE_KEY = os.environ['SUPABASE_SERVICE_KEY']
-SUPABASE_ANON_KEY = os.environ['SUPABASE_ANON_KEY']
+# Supabase connection — both URL and service key are required for the
+# backend to function. Fail fast at startup with a clear message rather
+# than a bare KeyError if either is missing.
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
+if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+    raise RuntimeError(
+        "Required env vars missing: SUPABASE_URL and SUPABASE_SERVICE_KEY must both be set."
+    )
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
@@ -196,46 +205,53 @@ async def get_categories():
 # ============= Auth Routes =============
 @api_router.post("/auth/signup", response_model=AuthResponse)
 async def signup(request: SignupRequest):
+    """
+    Create a new user with email pre-confirmed (uses the service key's admin
+    privileges) and immediately issue a session so the same credentials work
+    on the very next login. This avoids Supabase's default email-confirmation
+    flow blocking login until the user clicks a verification link.
+    """
     try:
-        # Create user in Supabase Auth
-        auth_response = supabase.auth.sign_up({
+        # 1. Create the user via the admin API with email already confirmed.
+        #    This requires SUPABASE_SERVICE_KEY (which the backend uses).
+        admin_response = supabase.auth.admin.create_user({
             "email": request.email,
             "password": request.password,
-            "options": {
-                "data": {
-                    "role": request.role
-                }
-            }
+            "email_confirm": True,
+            "user_metadata": {"role": request.role},
         })
-        
-        if not auth_response.user:
+
+        if not admin_response.user:
             raise HTTPException(status_code=400, detail="Signup failed")
-        
-        user_id = auth_response.user.id
-        
-        # Store role in user_roles table
-        supabase.table('user_roles').insert({
+
+        user_id = admin_response.user.id
+
+        # 2. Record the role so the rest of the app can look it up.
+        supabase.table("user_roles").insert({
             "user_id": user_id,
-            "role": request.role
+            "role": request.role,
         }).execute()
-        
-        # Get session token
-        if not auth_response.session:
+
+        # 3. Sign the user in to get a session token.
+        login_response = supabase.auth.sign_in_with_password({
+            "email": request.email,
+            "password": request.password,
+        })
+
+        if not login_response.session:
             raise HTTPException(status_code=400, detail="Session creation failed")
-        
-        token = auth_response.session.access_token
-        
+
         return AuthResponse(
-            token=token,
+            token=login_response.session.access_token,
             role=request.role,
             user_id=user_id,
-            message="Signup successful"
+            message="Signup successful",
         )
     except HTTPException:
         raise
     except Exception as e:
         error_msg = str(e)
-        if "already registered" in error_msg or "already exists" in error_msg:
+        if "already registered" in error_msg or "already exists" in error_msg or "User already" in error_msg:
             raise HTTPException(status_code=400, detail="Email already registered")
         logging.error(f"Signup error: {error_msg}")
         raise HTTPException(status_code=400, detail=f"Signup failed: {error_msg}")
@@ -272,8 +288,19 @@ async def login(request: LoginRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Login error: {str(e)}")
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        error_msg = str(e)
+        logging.error(f"Login error: {error_msg}")
+        # Surface the real reason when it's a known case, instead of always
+        # collapsing every Supabase auth failure into "Invalid credentials".
+        if "Email not confirmed" in error_msg or "email_not_confirmed" in error_msg:
+            raise HTTPException(
+                status_code=401,
+                detail="Email not confirmed. Please verify your email before logging in.",
+            )
+        if "Invalid login credentials" in error_msg or "invalid_credentials" in error_msg:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        # Anything else: log details, return a generic 401 — but don't lie.
+        raise HTTPException(status_code=401, detail=f"Login failed: {error_msg}")
 
 # ============= Vendor Routes =============
 @api_router.post("/vendor/profile", response_model=VendorProfile)

@@ -5,20 +5,36 @@ This script manually creates the required tables for the OkaySet platform
 """
 
 from supabase import create_client
+from dotenv import load_dotenv
+from pathlib import Path
 import os
+import re
+import sys
 
-SUPABASE_URL = 'https://kycqtljpvksauzhvmlez.supabase.co'
-SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5Y3F0bGpwdmtzYXV6aHZtbGV6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTMyNDM1MCwiZXhwIjoyMDg0OTAwMzUwfQ.NbmuQbk3fmQAt41evFKe49efms5hlqCAqxuGG_KnbrA'
+# Load env from backend/.env first (legacy), then project-root .env (current).
+load_dotenv(Path(__file__).parent / ".env")
+load_dotenv(Path(__file__).parent.parent / ".env")
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
 
 def main():
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        print("❌ SUPABASE_URL and SUPABASE_SERVICE_KEY must be set in env.")
+        sys.exit(1)
+
     print("🚀 Setting up Supabase tables...")
-    
+
     supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-    
+
+    # Derive the project ref from the URL so the dashboard link works for any project.
+    m = re.match(r"https://([a-z0-9]+)\.supabase\.co", SUPABASE_URL)
+    project_ref = m.group(1) if m else "<your-project>"
+
     print("\n📋 MANUAL STEP REQUIRED:")
     print("=" * 70)
     print("Please execute the following SQL in your Supabase SQL Editor:")
-    print(f"https://supabase.com/dashboard/project/kycqtljpvksauzhvmlez/sql/new")
+    print(f"https://supabase.com/dashboard/project/{project_ref}/sql/new")
     print("=" * 70)
     
     sql_commands = """

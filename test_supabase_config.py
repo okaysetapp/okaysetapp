@@ -6,12 +6,24 @@ Test Supabase client configuration
 import requests
 import json
 import os
+import sys
+from pathlib import Path
+from dotenv import load_dotenv
 from supabase import create_client
 
-# Load environment variables
-SUPABASE_URL = "https://kycqtljpvksauzhvmlez.supabase.co"
-SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5Y3F0bGpwdmtzYXV6aHZtbGV6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTMyNDM1MCwiZXhwIjoyMDg0OTAwMzUwfQ.NbmuQbk3fmQAt41evFKe49efms5hlqCAqxuGG_KnbrA"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5Y3F0bGpwdmtzYXV6aHZtbGV6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkzMjQzNTAsImV4cCI6MjA4NDkwMDM1MH0.Bqs_HxEqPqAX0Tc_Z5O3WRW0wAL8bpqBiBqpZ0_rqIk"
+# Load env from project-root .env (single source of truth)
+load_dotenv(Path(__file__).parent / ".env")
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
+SUPABASE_ANON_KEY = (
+    os.environ.get("SUPABASE_ANON_KEY")
+    or os.environ.get("REACT_APP_SUPABASE_ANON_KEY")
+)
+
+if not (SUPABASE_URL and SUPABASE_SERVICE_KEY and SUPABASE_ANON_KEY):
+    print("❌ SUPABASE_URL, SUPABASE_SERVICE_KEY, and SUPABASE_ANON_KEY (or REACT_APP_SUPABASE_ANON_KEY) must be set in env.")
+    sys.exit(1)
 
 def test_supabase_auth():
     print("🔍 Testing Supabase Client Configuration")

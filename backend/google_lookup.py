@@ -22,10 +22,11 @@ import httpx
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent / '.env')
+load_dotenv(Path(__file__).parent.parent / '.env')  # project-root fallback
 
 logger = logging.getLogger(__name__)
 
-GOOGLE_PLACES_API_KEY = os.environ['GOOGLE_PLACES_API_KEY']
+GOOGLE_PLACES_API_KEY = os.environ.get("GOOGLE_PLACES_API_KEY")
 DAILY_CAP = int(os.environ.get('GOOGLE_PLACES_DAILY_CAP', '200'))
 USAGE_FILE = Path(__file__).parent / '.api_usage.json'
 
@@ -296,6 +297,13 @@ async def lookup_from_url(url: str) -> dict:
     """Returns vendor-form-shaped dict + meta. Raises ValueError on bad URL or quota exceeded."""
     if not url or not url.strip():
         raise ValueError("URL is required")
+
+    # Fail fast with a clear message if the key isn't configured. This used
+    # to crash at module import; now we boot fine and only error on actual use.
+    if not GOOGLE_PLACES_API_KEY:
+        raise ValueError(
+            "GOOGLE_PLACES_API_KEY is not set. Add it to backend env vars to use Google Places lookup."
+        )
 
     # Quota check first
     ok, current = _check_and_increment_quota()

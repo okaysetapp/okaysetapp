@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "atlastly-frontend",
+      "name": "okayset-frontend",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["start"],
-      "cwd": "/Users/sharonjoseph/Desktop/Sharon's Work Life/side projects/atlastly/codebase/frontend",
+      "cwd": "/Users/sharonjoseph/Desktop/Sharon's Work Life/side projects/okayset/codebase/frontend",
       "port": 3000
     }
   ]

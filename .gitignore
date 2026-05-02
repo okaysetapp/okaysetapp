@@ -1,0 +1,32 @@
+# --- Secrets / env ---
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+
+# --- Node / React ---
+node_modules/
+frontend/build/
+frontend/.cache/
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# --- Vercel ---
+.vercel/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# --- Local runtime state ---
+backend/.api_usage.json

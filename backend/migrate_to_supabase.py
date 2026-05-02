@@ -35,8 +35,11 @@ async def create_schema(supabase: Client):
     try:
         # Execute schema using Supabase RPC or direct SQL execution
         # Note: This requires the schema to be run manually in Supabase SQL Editor
+        import re
+        m = re.match(r"https://([a-z0-9]+)\.supabase\.co", SUPABASE_URL or "")
+        project_ref = m.group(1) if m else "<your-project>"
         print("⚠️  Please run the SQL schema in Supabase SQL Editor:")
-        print("   1. Go to: https://supabase.com/dashboard/project/kycqtljpvksauzhvmlez/sql")
+        print(f"   1. Go to: https://supabase.com/dashboard/project/{project_ref}/sql")
         print("   2. Copy and execute the contents of /app/backend/supabase_schema.sql")
         print("\nPress Enter after you've executed the schema...")
         input()
