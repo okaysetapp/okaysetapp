@@ -256,23 +256,33 @@ def _category_from_types(types: list) -> Optional[str]:
 
 
 async def _llm_category_fallback(name: str, types: list, description: str) -> Optional[str]:
-    """When static map doesn't match, ask Gemini Flash to classify."""
+    """When static map doesn't match, ask Gemini Flash to classify.
+
+    Uses the official `google-generativeai` SDK (already in requirements).
+    Reads the API key from GEMINI_API_KEY (or GOOGLE_API_KEY as a fallback).
+    Any exception — missing key, network error, model error — is swallowed
+    and we return None so the caller falls back to the static map.
+    """
     try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-        chat = LlmChat(
-            api_key=os.environ['EMERGENT_LLM_KEY'],
-            session_id=f"cat-{datetime.now(timezone.utc).timestamp()}",
-            system_message=(
+        import google.generativeai as genai
+        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        if not api_key:
+            return None
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(
+            "gemini-2.0-flash",
+            system_instruction=(
                 "You map a business to ONE of these exact categories: "
                 "Venue, Religious Venue, Catering, Decor, Photography, Makeup, "
                 "Attire Rentals, Car Rentals, Accessories, Jewellery. "
                 "Reply with ONLY the category name, nothing else. "
                 "If none clearly fit, reply 'NONE'."
             ),
-        ).with_model("gemini", "gemini-2.0-flash")
+        )
         prompt = f"Business name: {name}\nGoogle types: {types}\nDescription: {description}"
-        resp = await chat.send_message(UserMessage(text=prompt))
-        resp = (resp or "").strip()
+        # SDK call is sync — run in a thread so we don't block the event loop.
+        resp_obj = await asyncio.to_thread(model.generate_content, prompt)
+        resp = (getattr(resp_obj, "text", "") or "").strip()
         valid = {"Venue", "Religious Venue", "Catering", "Decor", "Photography",
                  "Makeup", "Attire Rentals", "Car Rentals", "Accessories", "Jewellery"}
         return resp if resp in valid else None
