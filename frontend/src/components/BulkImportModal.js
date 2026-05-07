@@ -64,7 +64,7 @@ export default function BulkImportModal({ token, onClose, onCreated }) {
       if (!selected[i] || !results[i].ok) continue;
       const d = results[i].data;
       // Skip rows missing required fields
-      const required = ['business_name', 'category', 'city', 'address', 'phone', 'description'];
+      const required = ['business_name', 'category', 'city', 'address', 'phone'];
       const missing = required.filter(f => !d[f]);
       if (missing.length > 0) {
         errors.push({ url: results[i].url, error: `Missing required: ${missing.join(', ')}` });
@@ -77,7 +77,7 @@ export default function BulkImportModal({ token, onClose, onCreated }) {
           city: d.city,
           address: d.address,
           phone: d.phone,
-          description: d.description || d.business_name,
+          description: d.description || '',
           external_link: d.external_link || null,
           latitude: d.latitude,
           longitude: d.longitude,

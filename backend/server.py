@@ -133,7 +133,7 @@ class VendorProfileCreate(BaseModel):
     city: str
     address: str
     phone: str
-    description: str
+    description: str = ""
     external_link: Optional[str] = None
     latitude: float
     longitude: float

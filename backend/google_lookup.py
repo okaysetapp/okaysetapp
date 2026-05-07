@@ -430,8 +430,8 @@ async def lookup_from_url(url: str) -> dict:
             "google_types": types,
             "category_via_llm": used_llm,
             "missing_fields": [k for k, v in {
-                "phone": phone, "city": city, "description": description,
-                "external_link": website, "category": category,
+                "phone": phone, "city": city, "external_link": website,
+                "category": category,
             }.items() if not v],
             "quota_used_today": current,
             "quota_daily_cap": DAILY_CAP,
